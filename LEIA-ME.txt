@@ -1,0 +1,17 @@
+ISI VIAGENS - Versão v3 Login como Página Inicial
+
+Arquivos:
+- index.html
+- funcoes.js
+
+O que mudou nesta versão:
+- A área de login/cadastro deixou de ser aba.
+- Agora existe uma página inicial de login em tela cheia.
+- O sistema só aparece depois de entrar, criar conta ou usar "Entrar direto".
+- Cadastro local com foto, nome, cargo, e-mail, WhatsApp e senha.
+- Perfil da Empresa continua separado e a logo da empresa continua aparecendo no PDF.
+- Estrutura preparada para Firebase/Supabase futuramente.
+
+Importante:
+Esta versão ainda não tem segurança real. Os dados ficam salvos no localStorage do navegador.
+Para vários usuários reais, o próximo passo será conectar Firebase Auth + Firestore + Storage.

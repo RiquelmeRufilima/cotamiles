@@ -1,0 +1,59 @@
+# ISI Viagens — PWA v4
+
+Esta versão transforma o sistema em PWA, ou seja, ele pode ser hospedado em HTTPS e instalado no celular como aplicativo.
+
+## Arquivos principais
+
+- `index.html` — sistema principal com página de login/cadastro local.
+- `funcoes.js` — funções do sistema e registro do PWA.
+- `manifest.json` — dados do aplicativo: nome, ícones, cor e modo standalone.
+- `service-worker.js` — cache básico para abrir o sistema mesmo sem internet após o primeiro acesso.
+- `icons/` — ícones do aplicativo.
+
+## Como testar no computador
+
+Abra o `index.html` normalmente para conferir o layout.
+
+Para testar instalação/cache de PWA de verdade, precisa rodar em servidor local ou hospedagem HTTPS.
+
+Servidor simples com Python:
+
+```bash
+python -m http.server 8000
+```
+
+Depois abra:
+
+```text
+http://localhost:8000
+```
+
+## Como colocar online grátis
+
+Você pode subir estes arquivos no GitHub Pages, Netlify, Vercel ou Firebase Hosting.
+
+Para PWA instalar no celular, precisa de HTTPS. GitHub Pages, Netlify, Vercel e Firebase Hosting já entregam HTTPS.
+
+## Como instalar no iPhone
+
+1. Abra o link pelo Safari.
+2. Toque no botão de compartilhar.
+3. Escolha “Adicionar à Tela de Início”.
+4. Confirme em “Adicionar”.
+
+## Como instalar no Android
+
+1. Abra o link pelo Chrome.
+2. Toque em “Instalar app”, se aparecer.
+3. Ou toque no menu ⋮ e escolha “Adicionar à tela inicial”.
+
+## Importante
+
+O login ainda é local/visual, salvo no navegador com `localStorage`. Isso prepara a interface, mas não é segurança real.
+
+Quando quiser vários usuários de verdade, conecte:
+
+- Firebase Auth — login e senha.
+- Firestore — dados de usuários, empresas e histórico.
+- Firebase Storage — fotos e logos.
+- Firebase Hosting — publicação do PWA.

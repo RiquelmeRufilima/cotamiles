@@ -1,0 +1,569 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #f0f2f5;
+    padding: 20px;
+}
+
+/* Abas */
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    background: white;
+    padding: 8px;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    max-width: 1600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: transparent;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #6c757d;
+}
+
+.tab-btn.active {
+    background: #008080;
+    color: white;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Dashboard */
+.dashboard {
+    display: flex;
+    gap: 24px;
+    max-width: 1600px;
+    margin: 0 auto;
+    height: calc(100vh - 40px);
+}
+
+/* Painel de Configuração */
+.config-panel {
+    width: 680px;
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    overflow-y: auto;
+}
+
+.config-panel h2 {
+    color: #1a1a2e;
+    margin-bottom: 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+/* Seções */
+.config-section {
+    margin-bottom: 24px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.config-section h3 {
+    color: #1a1a2e;
+    margin-bottom: 16px;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Formulários */
+.form-group {
+    margin-bottom: 12px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: #495057;
+    font-size: 12px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 13px;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #008080;
+    box-shadow: 0 0 0 3px rgba(0, 128, 128, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+}
+
+/* Grids */
+.row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+}
+
+/* Autocomplete */
+.autocomplete {
+    position: relative;
+    width: 100%;
+}
+
+.autocomplete-items {
+    position: absolute;
+    border: 1px solid #dee2e6;
+    z-index: 99;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 180px;
+    overflow-y: auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.autocomplete-items div {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.autocomplete-items div:hover {
+    background-color: #f8f9fa;
+}
+
+/* Botões */
+.btn-add-trecho {
+    background: #008080;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 12px;
+    width: 100%;
+    transition: background 0.2s;
+}
+
+.btn-add-trecho:hover {
+    background: #006666;
+}
+
+.btn-remove-trecho {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.btn-remove-trecho:hover {
+    background: #c82333;
+}
+
+.btn-generate {
+    background: #008080;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-generate:hover {
+    background: #006666;
+}
+
+/* Botões de quantidade (+ e -) */
+.btn-quantidade {
+    background: #008080;
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.btn-quantidade:hover {
+    background: #006666;
+}
+
+.btn-quantidade:active {
+    transform: scale(0.95);
+}
+
+/* Container para botões de bagagem */
+.bagagem-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.bagagem-quantidade-input {
+    width: 80px;
+    text-align: center;
+    padding: 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.bagagem-btn {
+    background: #008080;
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.bagagem-btn:hover {
+    background: #006666;
+}
+
+/* Cards de trecho */
+.trecho-card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.trecho-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.trecho-title {
+    font-weight: 600;
+    color: #008080;
+    font-size: 14px;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding: 8px 0;
+}
+
+.toggle-switch span {
+    font-size: 13px;
+    font-weight: 500;
+    color: #495057;
+}
+
+.toggle-switch input {
+    width: 44px;
+    height: 24px;
+    appearance: none;
+    background: #dee2e6;
+    border-radius: 24px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.toggle-switch input:checked {
+    background: #008080;
+}
+
+.toggle-switch input::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    transition: all 0.3s;
+}
+
+.toggle-switch input:checked::before {
+    left: 21px;
+}
+
+/* Passageiros */
+.passageiros-container {
+    margin-top: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.passageiro-card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.passageiro-nome {
+    font-size: 13px;
+    font-weight: 600;
+    color: #008080;
+    margin-bottom: 8px;
+}
+
+/* Grupo/Time */
+.grupo-imagem {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.clube-foto-preview {
+    width: 70px;
+    height: 70px;
+    border-radius: 12px;
+    object-fit: cover;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.upload-btn {
+    background: #008080;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.2s;
+}
+
+.upload-btn:hover {
+    background: #006666;
+}
+
+/* Preview Panel */
+.preview-panel {
+    flex: 1;
+    background: #f0f2f5;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background: white;
+    border-bottom: 1px solid #e9ecef;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.preview-header h2 {
+    color: #1a1a2e;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.preview-container {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.pdf-preview {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 800px;
+    margin: 0 auto;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Cores */
+.color-option {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin: 4px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.color-option.selected {
+    border-color: #1a1a2e;
+    transform: scale(1.1);
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    body {
+        padding: 12px;
+    }
+    .dashboard {
+        flex-direction: column;
+        height: auto;
+    }
+    .config-panel {
+        width: 100%;
+    }
+    .row-2,
+    .row-3 {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    .preview-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .grupo-imagem {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .config-panel {
+        padding: 16px;
+    }
+    .config-section {
+        padding: 12px;
+    }
+    .preview-container {
+        padding: 12px;
+    }
+    .pdf-preview {
+        padding: 16px;
+    }
+    .flight-card {
+        padding: 12px;
+    }
+    .airport-code {
+        font-size: 20px;
+    }
+    .time-value {
+        font-size: 16px;
+    }
+}
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #e9ecef;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c0c0c0;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #008080;
+}
+
+/* Impressão */
+@media print {
+    body {
+        background: white;
+        padding: 0;
+        margin: 0;
+    }
+    .config-panel,
+    .preview-header,
+    .btn-generate,
+    .tabs {
+        display: none !important;
+    }
+    .dashboard {
+        display: block !important;
+        height: auto !important;
+    }
+    .preview-panel {
+        background: white;
+        box-shadow: none !important;
+    }
+    .pdf-preview {
+        box-shadow: none;
+        padding: 20px;
+        margin: 0;
+        max-width: 100%;
+    }
+    .flight-card,
+    .price-container,
+    .passageiros-section {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}
