@@ -7,6 +7,8 @@ let ofertasRaw = [];
 let ofertaSelecionadaRaw = null;
 let trechosMult = [{ id: 1, nome: "Trecho 1" }, { id: 2, nome: "Trecho 2" }];
 let trechoCount = 2;
+// Controla apenas a visualização compacta no celular. No PDF os trechos saem normalmente.
+let trechosOcultosPreview = new Set();
 
 
 const STORAGE_KEYS = {
@@ -1015,14 +1017,16 @@ function gerarCardVoo(titulo, prefixo){
   let classe = $(`classe_${prefixo}`)?.value || "";
   let logo = getCompanhiaImg(companhia);
   let chegadaDisplay = diaSeg > 0 ? `${horaChegada} <span style="color:#e74c3c;">+${diaSeg}</span>` : horaChegada;
+  let oculto = trechosOcultosPreview.has(prefixo);
+  let classeOculto = oculto ? " mobile-collapsed" : "";
+  let ferramentas = botoesPreviewTrecho(prefixo, titulo);
   
   if(!origem && !destino && !data){
-    return `<div class="flight-card" style="opacity:.7;"><div class="flight-header"><span class="flight-type">${titulo}</span><span class="flight-date">—</span></div><div style="text-align:center;color:#6c757d;padding:15px;">✏️ Preencha os dados</div></div>`;
+    return `<div class="flight-card mobile-editable${classeOculto}" data-preview-prefixo="${escapeAttr(prefixo)}"><div class="flight-header"><span class="flight-type">${titulo}</span><span class="flight-date">—</span>${ferramentas}</div><div class="mobile-card-content"><div style="text-align:center;color:#6c757d;padding:15px;">✏️ Preencha os dados</div></div></div>`;
   }
   
-  return `<div class="flight-card"><div class="flight-header"><span class="flight-type">${titulo}</span><span class="flight-date">${formatarDataCurta(data) || "—"}</span></div><div class="route-main"><div class="airport-origin"><div class="airport-code">${origem || "?"}</div><div class="airport-city">${cidadeOrigem || "—"}</div></div><div class="flight-connection">${gerarSetaParadasHTML(prefixo, tipoVoo)}</div><div class="airport-destination"><div class="airport-code">${destino || "?"}</div><div class="airport-city">${cidadeDestino || "—"}</div></div></div><div class="schedule-row"><div class="time-point"><div class="time-value">${horaPartida || "—"}</div><div class="time-label">Partida</div></div><div class="duration-middle"><div class="duration-value">${formatarDuracao(duracaoH, duracaoM)}</div><div class="duration-label">Duração</div></div><div class="time-point"><div class="time-value">${chegadaDisplay || "—"}</div><div class="time-label">Chegada</div></div></div><div class="flight-footer"><div class="airline-info">${logo ? `<img class="airline-logo-small" ${imgAttrs(logo)}>` : ""}<span>${companhia || "Companhia"}</span></div>${classe ? `<div class="classe-info">${classe}</div>` : ""}</div>${gerarInfoParadasHTML(prefixo)}${gerarBagagensHTML(prefixo, titulo)}</div>`;
+  return `<div class="flight-card mobile-editable${classeOculto}" data-preview-prefixo="${escapeAttr(prefixo)}"><div class="flight-header"><span class="flight-type">${titulo}</span><span class="flight-date">${formatarDataCurta(data) || "—"}</span>${ferramentas}</div><div class="mobile-card-content"><div class="route-main"><div class="airport-origin"><div class="airport-code">${origem || "?"}</div><div class="airport-city">${cidadeOrigem || "—"}</div></div><div class="flight-connection">${gerarSetaParadasHTML(prefixo, tipoVoo)}</div><div class="airport-destination"><div class="airport-code">${destino || "?"}</div><div class="airport-city">${cidadeDestino || "—"}</div></div></div><div class="schedule-row"><div class="time-point"><div class="time-value">${horaPartida || "—"}</div><div class="time-label">Partida</div></div><div class="duration-middle"><div class="duration-value">${formatarDuracao(duracaoH, duracaoM)}</div><div class="duration-label">Duração</div></div><div class="time-point"><div class="time-value">${chegadaDisplay || "—"}</div><div class="time-label">Chegada</div></div></div><div class="flight-footer"><div class="airline-info">${logo ? `<img class="airline-logo-small" ${imgAttrs(logo)}>` : ""}<span>${companhia || "Companhia"}</span></div>${classe ? `<div class="classe-info">${classe}</div>` : ""}</div>${gerarInfoParadasHTML(prefixo)}${gerarBagagensHTML(prefixo, titulo)}</div></div>`;
 }
-
 function gerarCardTrecho(trecho){
   let id = trecho.id;
   return gerarCardVoo(trecho.nome, `t${id}`);
@@ -1092,6 +1096,282 @@ function gerarPassageirosPDF(textoPessoas){
   return `<div class="passengers-box"><div class="pdf-section-title">Passageiros e pets</div><div class="passengers-head"><span>${passageiros.length} nome(s) informado(s)</span><span>${textoPessoas || ""}</span></div><div class="passenger-list">${passageiros.map((p)=>`<div class="passenger-pill"><span class="passenger-num">${String(p.ordem).padStart(2,"0")}</span><div style="display:flex;flex-direction:column;gap:3px;"><span class="passenger-name">${p.nome}</span><span style="display:inline-flex;align-self:flex-start;background:${p.tipo === "Pet" ? "#fff0d9" : "#e8f6f6"};color:${p.tipo === "Pet" ? "#9a5a00" : "#0b7a7a"};font-size:8px;font-weight:800;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.4px;">${p.label}</span></div></div>`).join("")}</div></div>`;
 }
 
+
+// ==================== PREVIEW INTERATIVO NO CELULAR ====================
+function garantirPreviewEditor(){
+  let modal = document.getElementById("previewEditorBackdrop");
+  if(modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "previewEditorBackdrop";
+  modal.className = "preview-editor-backdrop";
+  modal.innerHTML = `
+    <div class="preview-editor-sheet" role="dialog" aria-modal="true" aria-label="Editar preview">
+      <div class="preview-editor-handle"></div>
+      <div class="preview-editor-top">
+        <div>
+          <div class="preview-editor-kicker">Edição rápida</div>
+          <h3 id="previewEditorTitle">Editar</h3>
+        </div>
+        <button type="button" class="preview-editor-close" onclick="fecharEditorPreview()">×</button>
+      </div>
+      <div id="previewEditorBody" class="preview-editor-body"></div>
+      <div class="preview-editor-actions">
+        <button type="button" class="btn-secondary" onclick="fecharEditorPreview()">Cancelar</button>
+        <button type="button" class="btn-generate" id="previewEditorSaveBtn">Salvar alterações</button>
+      </div>
+    </div>`;
+  modal.addEventListener("click", (e)=>{ if(e.target === modal) fecharEditorPreview(); });
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function fecharEditorPreview(){
+  let modal = document.getElementById("previewEditorBackdrop");
+  if(modal) modal.classList.remove("active");
+}
+
+function opcoesSelectDoCampo(id, fallback=[]){
+  const el = $(id);
+  if(el && el.tagName === "SELECT"){
+    return [...el.options].map(o => ({ value:o.value, label:o.textContent }));
+  }
+  return fallback;
+}
+
+function campoEditorHTML(campo){
+  const el = $(campo.id);
+  const valor = el ? (el.type === "checkbox" ? el.checked : el.value) : (campo.value || "");
+  const label = escapeHtml(campo.label || campo.id);
+  const tipo = campo.type || (el?.tagName === "SELECT" ? "select" : (el?.type || "text"));
+  const extraClass = campo.full ? " preview-field-full" : "";
+  const attrs = `data-target-id="${escapeAttr(campo.id)}" ${campo.prefixo ? `data-prefixo="${escapeAttr(campo.prefixo)}"` : ""}`;
+
+  if(tipo === "select"){
+    const opts = campo.options || opcoesSelectDoCampo(campo.id);
+    return `<label class="preview-field${extraClass}"><span>${label}</span><select ${attrs} ${campo.onchange || ""}>${opts.map(o => `<option value="${escapeAttr(o.value)}" ${String(o.value) === String(valor) ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}</select></label>`;
+  }
+  if(tipo === "textarea"){
+    return `<label class="preview-field preview-field-full"><span>${label}</span><textarea rows="3" ${attrs}>${escapeHtml(valor || "")}</textarea></label>`;
+  }
+  if(tipo === "checkbox"){
+    return `<label class="preview-field preview-field-check preview-field-full"><input type="checkbox" ${attrs} ${valor ? "checked" : ""}><span>${label}</span></label>`;
+  }
+  return `<label class="preview-field${extraClass}"><span>${label}</span><input type="${escapeAttr(tipo)}" value="${escapeAttr(valor || "")}" ${campo.maxlength ? `maxlength="${campo.maxlength}"` : ""} ${campo.min !== undefined ? `min="${campo.min}"` : ""} ${campo.placeholder ? `placeholder="${escapeAttr(campo.placeholder)}"` : ""} ${campo.list ? `list="${escapeAttr(campo.list)}"` : ""} ${attrs}></label>`;
+}
+
+function getTituloPrefixo(prefixo, fallback){
+  if(prefixo === "ida") return "Ida";
+  if(prefixo === "volta") return "Volta";
+  if(prefixo === "interno") return "Voo Interno";
+  if(String(prefixo).startsWith("t")){
+    const id = parseInt(String(prefixo).slice(1));
+    const trecho = trechosMult.find(t => t.id === id);
+    return trecho?.nome || fallback || `Trecho ${id}`;
+  }
+  return fallback || "Trecho";
+}
+
+function previewEditorAtualizarParadas(prefixo, valorTipo){
+  const modal = document.getElementById("previewEditorBackdrop");
+  if(!modal) return;
+  const match = String(valorTipo || "Direto").match(/(\d+)/);
+  const qtd = Math.min(4, Math.max(0, match ? parseInt(match[1]) : 0));
+  modal.querySelectorAll(`[data-preview-parada-prefixo="${CSS.escape(prefixo)}"]`).forEach(card => {
+    const n = parseInt(card.dataset.previewParadaNumero || "0");
+    card.classList.toggle("hidden", n > qtd);
+  });
+}
+
+function montarCamposTrechoPreview(prefixo){
+  const campos = [];
+  const idTrecho = String(prefixo).startsWith("t") ? parseInt(String(prefixo).slice(1)) : null;
+  if(idTrecho) campos.push({ id:`nomeTrecho_${idTrecho}`, label:"Nome do trecho", type:"text", full:true });
+  campos.push(
+    { id:`data_${prefixo}`, label:"Data", type:"date" },
+    { id:`companhia_${prefixo}`, label:"Companhia", type:"select", options: opcoesSelectDoCampo(`companhia_${prefixo}`), full:true },
+    { id:`origem_${prefixo}`, label:"Origem", type:"text", maxlength:3, list:"listaAeroportosBR", placeholder:"FOR" },
+    { id:`cidadeOrigem_${prefixo}`, label:"Cidade origem", type:"text" },
+    { id:`destino_${prefixo}`, label:"Destino", type:"text", maxlength:3, list:"listaAeroportosBR", placeholder:"GRU" },
+    { id:`cidadeDestino_${prefixo}`, label:"Cidade destino", type:"text" },
+    { id:`horaPartida_${prefixo}`, label:"Partida", type:"time" },
+    { id:`horaChegada_${prefixo}`, label:"Chegada", type:"time" },
+    { id:`diaSeguinte_${prefixo}`, label:"+ dias", type:"select", options: opcoesSelectDoCampo(`diaSeguinte_${prefixo}`) },
+    { id:`tipoVoo_${prefixo}`, label:"Tipo de voo", type:"select", options: opcoesSelectDoCampo(`tipoVoo_${prefixo}`), onchange:`onchange="previewEditorAtualizarParadas('${prefixo}', this.value)"` },
+    { id:`classe_${prefixo}`, label:"Classe", type:"select", options: opcoesSelectDoCampo(`classe_${prefixo}`) },
+    { id:`duracaoHoras_${prefixo}`, label:"Duração h", type:"number", min:0 },
+    { id:`duracaoMin_${prefixo}`, label:"Duração min", type:"number", min:0 },
+    { id:`bagItem_${prefixo}`, label:"Bolsa 10kg", type:"number", min:1 },
+    { id:`bagMao_${prefixo}`, label:"Mala 12kg", type:"number", min:1 },
+    { id:`bagDesp_${prefixo}`, label:"Despachada 23kg", type:"number", min:0 }
+  );
+  return campos;
+}
+
+function montarParadasEditor(prefixo){
+  let html = `<div class="preview-field-full preview-editor-subtitle">Paradas e tempo de espera</div>`;
+  for(let i=1; i<=4; i++){
+    html += `<div class="preview-parada-card" data-preview-parada-prefixo="${escapeAttr(prefixo)}" data-preview-parada-numero="${i}">
+      <strong>Parada ${i}</strong>
+      <div class="preview-editor-grid mini">
+        ${campoEditorHTML({ id:`parada${i}_${prefixo}`, label:"Aeroporto", type:"text", maxlength:3, list:"listaAeroportosBR", placeholder:"BSB" })}
+        ${campoEditorHTML({ id:`parada${i}h_${prefixo}`, label:"h", type:"number", min:0 })}
+        ${campoEditorHTML({ id:`parada${i}m_${prefixo}`, label:"min", type:"number", min:0 })}
+      </div>
+    </div>`;
+  }
+  return html;
+}
+
+function abrirEditorTrechoPreview(prefixo, titulo){
+  const modal = garantirPreviewEditor();
+  const nome = getTituloPrefixo(prefixo, titulo);
+  $("previewEditorTitle").textContent = `Editar ${nome}`;
+  const campos = montarCamposTrechoPreview(prefixo);
+  $("previewEditorBody").innerHTML = `<div class="preview-editor-grid">${campos.map(campoEditorHTML).join("")}${montarParadasEditor(prefixo)}</div>`;
+  $("previewEditorSaveBtn").onclick = () => salvarEditorPreview("trecho", prefixo);
+  modal.classList.add("active");
+  const tipoAtual = $(`tipoVoo_${prefixo}`)?.value || "Direto";
+  previewEditorAtualizarParadas(prefixo, tipoAtual);
+}
+
+function abrirEditorGeralPreview(tipo){
+  const modal = garantirPreviewEditor();
+  let titulo = "Editar informações";
+  let campos = [];
+  let extra = "";
+
+  if(tipo === "info"){
+    titulo = "Editar dados gerais";
+    campos = [
+      { id:"cliente", label:"Cliente", type:"text" },
+      { id:"cotacao", label:"Nome da cotação", type:"text" },
+      { id:"localizador", label:"Localizador", type:"text", maxlength:10 },
+      { id:"tipoViagem", label:"Tipo de viagem", type:"select", options: opcoesSelectDoCampo("tipoViagem"), full:true },
+      { id:"incluirVooInterno", label:"Incluir voo interno", type:"checkbox" },
+      { id:"nomeGrupo", label:"Nome do grupo/time", type:"text", full:true }
+    ];
+  } else if(tipo === "passageiros"){
+    titulo = "Editar passageiros";
+    campos = [
+      { id:"adultosManual", label:"Adultos", type:"number", min:0 },
+      { id:"criancasManual", label:"Crianças", type:"number", min:0 },
+      { id:"bebesManual", label:"Bebês", type:"number", min:0 },
+      { id:"petsManual", label:"Pets", type:"number", min:0 }
+    ];
+    const nomes = [...document.querySelectorAll(".nomePassageiroInput")].map(input => ({ id:input.id, label:input.dataset.tipo || "Nome", type:"text", full:true }));
+    if(nomes.length){
+      extra = `<div class="preview-field-full preview-editor-subtitle">Nomes opcionais</div>${nomes.map(campoEditorHTML).join("")}`;
+    }
+  } else if(tipo === "valores"){
+    titulo = "Editar valores";
+    campos = [
+      { id:"valorOriginal", label:"Valor original", type:"text" },
+      { id:"valorPromocional", label:"Valor promocional", type:"text" },
+      { id:"observacoes", label:"Observações", type:"textarea", full:true }
+    ];
+  } else if(tipo === "tema"){
+    titulo = "Editar tema";
+    campos = [
+      { id:"corPersonalizada", label:"Cor do PDF", type:"color" },
+      { id:"corHex", label:"Código da cor", type:"text" }
+    ];
+  }
+
+  $("previewEditorTitle").textContent = titulo;
+  $("previewEditorBody").innerHTML = `<div class="preview-editor-grid">${campos.map(campoEditorHTML).join("")}${extra}</div>`;
+  $("previewEditorSaveBtn").onclick = () => salvarEditorPreview(tipo, "");
+  modal.classList.add("active");
+}
+
+function salvarEditorPreview(tipo, prefixo){
+  const modal = document.getElementById("previewEditorBackdrop");
+  if(!modal) return;
+  const campos = [...modal.querySelectorAll("[data-target-id]")];
+
+  campos.forEach(input => {
+    const id = input.dataset.targetId;
+    const alvo = $(id);
+    if(!alvo) return;
+    let valor = input.type === "checkbox" ? input.checked : input.value;
+    if(input.type === "text" && /^(origem|destino|parada\d)_/.test(id)) valor = String(valor || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0,3);
+    if(input.type === "checkbox") alvo.checked = !!valor;
+    else alvo.value = valor;
+  });
+
+  // Preenche automaticamente cidades quando um código IATA conhecido for editado no preview.
+  campos.forEach(input => {
+    const id = input.dataset.targetId || "";
+    const m = id.match(/^(origem|destino)_(.+)$/);
+    if(m){
+      const prefixoCampo = m[2];
+      const cidadeId = m[1] === "origem" ? `cidadeOrigem_${prefixoCampo}` : `cidadeDestino_${prefixoCampo}`;
+      const cidade = getCidadeAeroporto($(id)?.value || "");
+      const cidadeEl = $(cidadeId);
+      if(cidade && cidadeEl && !modal.querySelector(`[data-target-id="${CSS.escape(cidadeId)}"]`)?.value) cidadeEl.value = cidade;
+    }
+  });
+
+  if(tipo === "tema"){
+    const cor = $("corHex")?.value || $("corPersonalizada")?.value || corAtual;
+    mudarCor(cor);
+  }
+  if(tipo === "info"){
+    atualizarVisibilidadeSecoes();
+    if($("nomeGrupo")) nomeGrupoAtual = $("nomeGrupo").value;
+    if($("incluirVooInterno")) toggleVooInterno();
+  }
+  if(tipo === "passageiros"){
+    syncPaxManual();
+    renderizarCamposPassageiros();
+  }
+  if(tipo === "trecho"){
+    if(String(prefixo).startsWith("t")){
+      const idTrecho = parseInt(String(prefixo).slice(1));
+      const trecho = trechosMult.find(t => t.id === idTrecho);
+      if(trecho && $(`nomeTrecho_${idTrecho}`)) trecho.nome = $(`nomeTrecho_${idTrecho}`).value || `Trecho ${idTrecho}`;
+    }
+    normalizarBagagens(prefixo);
+    atualizarCamposParadas(prefixo);
+  }
+
+  atualizarTodosCamposParadas();
+  atualizarPreview();
+  fecharEditorPreview();
+}
+
+function toggleOcultarTrechoPreview(prefixo){
+  if(trechosOcultosPreview.has(prefixo)) trechosOcultosPreview.delete(prefixo);
+  else trechosOcultosPreview.add(prefixo);
+  atualizarPreview();
+}
+
+function toggleMobileConfigPanel(){
+  const painel = document.querySelector(".config-panel");
+  if(!painel) return;
+  painel.classList.toggle("mobile-open");
+  if(painel.classList.contains("mobile-open")){
+    painel.scrollIntoView({ behavior:"smooth", block:"start" });
+  }
+}
+
+function botoesPreviewTrecho(prefixo, titulo){
+  const oculto = trechosOcultosPreview.has(prefixo);
+  return `<div class="preview-edit-tools no-print">
+    <button type="button" class="preview-edit-btn" onclick="abrirEditorTrechoPreview('${escapeAttr(prefixo)}','${escapeAttr(titulo)}')">✏️ Editar</button>
+    <button type="button" class="preview-collapse-btn" onclick="toggleOcultarTrechoPreview('${escapeAttr(prefixo)}')">${oculto ? "👁️ Mostrar" : "− Ocultar"}</button>
+  </div>`;
+}
+
+function ferramentasGlobaisPreview(){
+  return `<div class="preview-global-actions no-print">
+    <button type="button" onclick="abrirEditorGeralPreview('info')">📋 Info</button>
+    <button type="button" onclick="abrirEditorGeralPreview('passageiros')">👥 Passageiros</button>
+    <button type="button" onclick="abrirEditorGeralPreview('valores')">💰 Valores</button>
+    <button type="button" onclick="abrirEditorGeralPreview('tema')">🎨 Tema</button>
+    <button type="button" onclick="toggleMobileConfigPanel()">⚙️ Formulário</button>
+  </div>`;
+}
+
 // ==================== PREVIEW ====================
 function gerarHTMLPreview(){
   let cliente = $("cliente").value;
@@ -1141,6 +1421,7 @@ function gerarHTMLPreview(){
   let empresaSub = empresaContato || empresaSlogan;
 
   return `<div class="pdf-preview pdf-reformado ${classePdf}">
+    ${ferramentasGlobaisPreview()}
     <div class="pdf-topbar">
       <div class="pdf-brand"><img ${perfilLogoAttrs()}><div><div class="pdf-brand-title">${empresaNome}</div><div class="pdf-brand-sub">${empresaSub}</div></div></div>
       <div class="pdf-title-box"><div class="pdf-main-title">${cotacao || "Passagem Aérea"}</div>${clienteHtml}</div>
