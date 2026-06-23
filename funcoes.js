@@ -19,8 +19,8 @@ const STORAGE_KEYS = {
 };
 
 const PERFIL_EMPRESA_PADRAO = {
-  nome: "ISI VIAGENS LTDA",
-  slogan: "VOAR É ISI ✈️",
+  nome: "Cotamiles",
+  slogan: "Cotação aérea inteligente ✈️",
   whatsapp: "",
   email: "comercial@isiviagens.com",
   site: "",
@@ -161,9 +161,12 @@ function carregarPerfilEmpresa(){
   }
 }
 
-function persistirPerfilEmpresa(){
+function persistirPerfilEmpresa(syncFirebase=true){
   perfilEmpresa.atualizadoEm = new Date().toISOString();
   localStorage.setItem(STORAGE_KEYS.perfilEmpresa, JSON.stringify(perfilEmpresa));
+  if(syncFirebase && firebaseProntoCotamiles && firebaseAuthCotamiles?.currentUser){
+    salvarPerfilFirebase().catch(err => console.warn("Não foi possível sincronizar perfil:", err));
+  }
 }
 
 function lerPerfilDoFormulario(){
@@ -349,6 +352,231 @@ function avatarPadraoUsuario(nome="Usuário"){
 
 function emailNormalizado(v){ return String(v || "").trim().toLowerCase(); }
 
+// ==================== SEGURANÇA / AUTENTICAÇÃO ====================
+// IMPORTANTE: no GitHub Pages o código é público. Não coloque senhas, chaves privadas,
+// client_secret, tokens do Amadeus ou SMTP aqui. Para produção, use Firebase Auth,
+// Supabase Auth, Auth0 ou um backend próprio.
+const SECURITY_CONFIG = {
+  minSenha: 12,
+  maxSenha: 64,
+  maxTentativasLogin: 5,
+  bloqueioMinutos: 15,
+  twoFactorObrigatorio: false, // ativar somente quando tiver Firebase/Supabase/backend
+  authProvider: "firebase" // login real via Firebase Auth
+};
+
+
+// ==================== FIREBASE AUTH / FIRESTORE ====================
+// Configure o arquivo firebase-config.js com os dados do seu projeto.
+let firebaseAppCotamiles = null;
+let firebaseAuthCotamiles = null;
+let firebaseDbCotamiles = null;
+let firebaseProntoCotamiles = false;
+
+function firebaseConfigValido(){
+  const cfg = window.COTAMILES_FIREBASE_CONFIG || null;
+  return !!(window.firebase && cfg && cfg.apiKey && !String(cfg.apiKey).includes("COLE_AQUI") && cfg.projectId);
+}
+
+function inicializarFirebaseCotamiles(){
+  if(firebaseProntoCotamiles) return true;
+  if(!firebaseConfigValido()) return false;
+  try{
+    firebaseAppCotamiles = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(window.COTAMILES_FIREBASE_CONFIG);
+    firebaseAuthCotamiles = firebase.auth();
+    firebaseDbCotamiles = firebase.firestore ? firebase.firestore() : null;
+    firebaseProntoCotamiles = true;
+    return true;
+  }catch(err){
+    console.error("Erro ao iniciar Firebase:", err);
+    return false;
+  }
+}
+
+function authFirebaseAtivo(){ return inicializarFirebaseCotamiles() && !!firebaseAuthCotamiles; }
+function uidAtualFirebase(){ return firebaseAuthCotamiles?.currentUser?.uid || usuarioAtual?.id || "local-admin"; }
+
+function traduzirErroFirebase(error){
+  const code = error?.code || "";
+  const mapa = {
+    "auth/email-already-in-use": "Este e-mail já está cadastrado.",
+    "auth/invalid-email": "E-mail inválido.",
+    "auth/weak-password": "Senha fraca. Use no mínimo 12 caracteres com letra, número e símbolo.",
+    "auth/invalid-credential": "E-mail ou senha incorretos. Se esse e-mail ainda não tem cadastro, clique em Criar conta.",
+    "auth/wrong-password": "Senha incorreta.",
+    "auth/user-not-found": "Usuário não encontrado. Clique em Criar conta para cadastrar esse e-mail.",
+    "auth/too-many-requests": "Muitas tentativas. Aguarde um pouco e tente novamente.",
+    "auth/network-request-failed": "Falha de conexão. Verifique a internet.",
+    "auth/operation-not-allowed": "Ative Email/Senha no Firebase Authentication."
+  };
+  return mapa[code] || error?.message || "Não foi possível concluir a ação.";
+}
+
+async function salvarPerfilFirebase(){
+  if(!firebaseDbCotamiles || !firebaseAuthCotamiles?.currentUser) return;
+  const uid = firebaseAuthCotamiles.currentUser.uid;
+  const perfilSeguro = { ...perfilEmpresa, atualizadoEm: new Date().toISOString() };
+  await firebaseDbCotamiles.collection("usuarios").doc(uid).set({
+    usuario: {
+      uid,
+      nome: usuarioAtual.nome || "",
+      email: usuarioAtual.email || firebaseAuthCotamiles.currentUser.email || "",
+      cargo: usuarioAtual.cargo || "",
+      whatsapp: usuarioAtual.whatsapp || "",
+      foto: usuarioAtual.foto || "",
+      permissao: usuarioAtual.permissao || "agente",
+      atualizadoEm: new Date().toISOString()
+    },
+    empresa: perfilSeguro,
+    acl: usuarioAtual.acl || ["cotacao:manual"],
+    authProvider: "firebase"
+  }, { merge:true });
+}
+
+async function carregarPerfilFirebase(){
+  if(!firebaseDbCotamiles || !firebaseAuthCotamiles?.currentUser) return;
+  const uid = firebaseAuthCotamiles.currentUser.uid;
+  const snap = await firebaseDbCotamiles.collection("usuarios").doc(uid).get();
+  if(!snap.exists) return;
+  const data = snap.data() || {};
+  if(data.usuario){
+    usuarioAtual = { ...usuarioAtual, ...data.usuario, id: uid, modo: "firebase" };
+    salvarUsuarioAtual();
+  }
+  if(data.empresa){
+    perfilEmpresa = { ...perfilEmpresa, ...data.empresa };
+    persistirPerfilEmpresa(false);
+  }
+}
+
+function observarSessaoFirebase(){
+  if(!authFirebaseAtivo()) return false;
+  firebaseAuthCotamiles.onAuthStateChanged(async (user)=>{
+    if(user){
+      usuarioAtual = {
+        ...clonar(USUARIO_LOCAL_PADRAO),
+        id: user.uid,
+        nome: user.displayName || usuarioAtual.nome || "Usuário",
+        email: user.email || "",
+        foto: user.photoURL || usuarioAtual.foto || avatarPadraoUsuario(user.email || "Usuário"),
+        cargo: usuarioAtual.cargo || "Agente de viagens",
+        permissao: usuarioAtual.permissao || "agente",
+        modo: "firebase",
+        acl: usuarioAtual.acl || ["cotacao:manual", "perfil:editar", "historico:ver"]
+      };
+      try{ await carregarPerfilFirebase(); }catch(e){ console.warn("Perfil Firebase não carregou:", e); }
+      salvarUsuarioAtual();
+      marcarSessaoAtiva();
+      atualizarTelaLoginApp();
+      preencherFormularioPerfilEmpresa();
+      atualizarPreview();
+    }else{
+      localStorage.removeItem(STORAGE_KEYS.sessaoAtiva);
+      atualizarTelaLoginApp();
+    }
+  });
+  return true;
+}
+
+function avaliarSenhaForte(senha=""){
+  const s = String(senha || "");
+  return {
+    tamanho: s.length >= SECURITY_CONFIG.minSenha && s.length <= SECURITY_CONFIG.maxSenha,
+    maiusculaMinuscula: /[A-Z]/.test(s) && /[a-z]/.test(s),
+    numero: /\d/.test(s),
+    simbolo: /[^A-Za-z0-9]/.test(s)
+  };
+}
+
+function senhaEhForte(senha=""){
+  const r = avaliarSenhaForte(senha);
+  return r.tamanho && r.maiusculaMinuscula && r.numero && r.simbolo;
+}
+
+function atualizarRegrasSenha(){
+  const senha = $("contaCadastroSenha")?.value || "";
+  const r = avaliarSenhaForte(senha);
+  const mapa = {
+    regraTamanho: r.tamanho,
+    regraMaiuscula: r.maiusculaMinuscula,
+    regraNumero: r.numero,
+    regraSimbolo: r.simbolo
+  };
+  Object.entries(mapa).forEach(([id, ok])=>{
+    const el = $(id);
+    if(!el) return;
+    el.classList.toggle("ok", ok);
+    el.classList.toggle("fail", !ok);
+  });
+}
+
+function chaveTentativasLogin(email){ return "cotamiles_login_attempts_" + emailNormalizado(email); }
+
+function obterControleTentativas(email){
+  try { return JSON.parse(localStorage.getItem(chaveTentativasLogin(email)) || "{}"); }
+  catch(e){ return {}; }
+}
+
+function loginEstaBloqueado(email){
+  const info = obterControleTentativas(email);
+  if(!info.bloqueadoAte) return false;
+  return Date.now() < Number(info.bloqueadoAte);
+}
+
+function registrarFalhaLogin(email){
+  const key = chaveTentativasLogin(email);
+  const info = obterControleTentativas(email);
+  const tentativas = Number(info.tentativas || 0) + 1;
+  const novo = { tentativas, atualizadoEm: Date.now() };
+  if(tentativas >= SECURITY_CONFIG.maxTentativasLogin){
+    novo.bloqueadoAte = Date.now() + SECURITY_CONFIG.bloqueioMinutos * 60 * 1000;
+  }
+  localStorage.setItem(key, JSON.stringify(novo));
+  return novo;
+}
+
+function limparFalhasLogin(email){ localStorage.removeItem(chaveTentativasLogin(email)); }
+
+function toggleVisibilidadeSenha(inputId, btn){
+  const input = $(inputId);
+  if(!input) return;
+  const mostrar = input.type === "password";
+  input.type = mostrar ? "text" : "password";
+  if(btn){
+    btn.classList.toggle("active", mostrar);
+    btn.textContent = mostrar ? "🙈" : "👁️";
+  }
+}
+
+function solicitarResetSenha(){
+  const box = $("resetSenhaBox");
+  if(!box) return enviarResetSenha();
+  const loginEmail = emailNormalizado($("contaLoginEmail")?.value || "");
+  if($("contaResetEmail") && loginEmail) $("contaResetEmail").value = loginEmail;
+  box.classList.remove("hidden");
+  setTimeout(()=>$("contaResetEmail")?.focus(), 50);
+}
+
+function cancelarResetSenha(){
+  if($("resetSenhaBox")) $("resetSenhaBox").classList.add("hidden");
+}
+
+function enviarResetSenha(){
+  const email = emailNormalizado($("contaResetEmail")?.value || $("contaLoginEmail")?.value || "");
+  if(!email || !email.includes("@")) return mostrarStatusConta("error", "Informe o e-mail que deve receber o link de redefinição de senha.");
+
+  if(!authFirebaseAtivo()){
+    return mostrarStatusConta("error", "Firebase ainda não está configurado. Preencha o firebase-config.js para enviar recuperação por e-mail.");
+  }
+
+  firebaseAuthCotamiles.sendPasswordResetEmail(email)
+    .then(()=>{
+      cancelarResetSenha();
+      mostrarStatusConta("success", "✅ Enviamos o link de redefinição para o e-mail informado.");
+    })
+    .catch((err)=>mostrarStatusConta("error", traduzirErroFirebase(err)));
+}
+
 async function hashSenhaLocal(senha){
   const texto = "isi-local-v1:" + String(senha || "");
   if(window.crypto?.subtle){
@@ -379,6 +607,7 @@ function limparFormularioConta(){
   ["contaCadastroNome","contaCadastroCargo","contaCadastroEmail","contaCadastroWhatsapp","contaCadastroSenha","contaCadastroConfirmar"].forEach(id => { if($(id)) $(id).value = ""; });
   contaCadastroFotoBase64 = "";
   if($("contaCadastroFotoPreview")) $("contaCadastroFotoPreview").src = avatarPadraoUsuario("Usuário");
+  atualizarRegrasSenha();
 }
 
 async function lidarUploadFotoConta(e){
@@ -407,51 +636,82 @@ async function criarContaLocal(){
 
   if(!nome) return mostrarStatusConta("error", "Informe o nome do usuário.");
   if(!email || !email.includes("@")) return mostrarStatusConta("error", "Informe um e-mail válido.");
-  if(senha.length < 4) return mostrarStatusConta("error", "Use uma senha com pelo menos 4 caracteres para teste.");
+  if(!senhaEhForte(senha)) return mostrarStatusConta("error", "Use senha forte: 12 a 64 caracteres, com maiúscula, minúscula, número e símbolo.");
   if(senha !== confirmar) return mostrarStatusConta("error", "As senhas não conferem.");
 
-  const contas = carregarContasLocais();
-  if(contas.some(c => emailNormalizado(c.email) === email)) return mostrarStatusConta("error", "Já existe uma conta com esse e-mail neste navegador.");
+  if(!authFirebaseAtivo()){
+    return mostrarStatusConta("error", "Firebase ainda não está configurado. Preencha firebase-config.js antes de criar contas reais.");
+  }
 
-  const novaConta = {
-    id: "user-" + Date.now(),
-    nome,
-    email,
-    whatsapp,
-    cargo,
-    foto: contaCadastroFotoBase64 || avatarPadraoUsuario(nome),
-    permissao: contas.length === 0 ? "admin" : "agente",
-    empresaId: perfilEmpresa.id || "empresa-local",
-    modo: "local",
-    senhaHash: await hashSenhaLocal(senha),
-    criadoEm: new Date().toISOString()
-  };
-  contas.push(novaConta);
-  salvarContasLocais(contas);
-  usuarioAtual = { ...clonar(USUARIO_LOCAL_PADRAO), ...novaConta };
-  delete usuarioAtual.senhaHash;
-  limparFormularioConta();
-  alternarTelaConta("login");
-  preencherFormularioPerfilEmpresa();
-  mostrarStatusConta("success", "✅ Conta criada. Abrindo sistema...");
-  liberarSistemaAposLogin();
+  try{
+    mostrarStatusConta("info", "Criando conta segura no Firebase...");
+    const cred = await firebaseAuthCotamiles.createUserWithEmailAndPassword(email, senha);
+    await cred.user.updateProfile({ displayName: nome, photoURL: contaCadastroFotoBase64 || "" }).catch(()=>{});
+    usuarioAtual = {
+      ...clonar(USUARIO_LOCAL_PADRAO),
+      id: cred.user.uid,
+      nome,
+      email,
+      whatsapp,
+      cargo,
+      foto: contaCadastroFotoBase64 || avatarPadraoUsuario(nome),
+      permissao: "agente",
+      empresaId: "empresa-" + cred.user.uid,
+      modo: "firebase",
+      acl: ["cotacao:manual", "perfil:editar", "historico:ver"]
+    };
+    salvarUsuarioAtual();
+    await salvarPerfilFirebase();
+    limparFormularioConta();
+    alternarTelaConta("login");
+    preencherFormularioPerfilEmpresa();
+    mostrarStatusConta("success", "✅ Conta criada com Firebase. Abrindo sistema...");
+    liberarSistemaAposLogin();
+  }catch(err){
+    mostrarStatusConta("error", traduzirErroFirebase(err));
+  }
 }
 
 async function entrarContaLocal(){
   const email = emailNormalizado($("contaLoginEmail")?.value || "");
   const senha = $("contaLoginSenha")?.value || "";
   if(!email || !senha) return mostrarStatusConta("error", "Informe e-mail e senha.");
-  const contas = carregarContasLocais();
-  const conta = contas.find(c => emailNormalizado(c.email) === email);
-  if(!conta) return mostrarStatusConta("error", "Conta não encontrada neste navegador.");
-  const hash = await hashSenhaLocal(senha);
-  if(hash !== conta.senhaHash) return mostrarStatusConta("error", "Senha incorreta.");
-  usuarioAtual = { ...clonar(USUARIO_LOCAL_PADRAO), ...conta };
-  delete usuarioAtual.senhaHash;
-  if($("contaLoginSenha")) $("contaLoginSenha").value = "";
-  preencherFormularioPerfilEmpresa();
-  mostrarStatusConta("success", "✅ Login realizado. Abrindo sistema...");
-  liberarSistemaAposLogin();
+
+  if(!authFirebaseAtivo()){
+    return mostrarStatusConta("error", "Firebase ainda não está configurado. Preencha firebase-config.js para usar login real.");
+  }
+
+  try{
+    mostrarStatusConta("info", "Conectando ao Firebase...");
+    const cred = await firebaseAuthCotamiles.signInWithEmailAndPassword(email, senha);
+    usuarioAtual = {
+      ...clonar(USUARIO_LOCAL_PADRAO),
+      id: cred.user.uid,
+      nome: cred.user.displayName || email.split("@")[0],
+      email: cred.user.email || email,
+      foto: cred.user.photoURL || usuarioAtual.foto || avatarPadraoUsuario(email),
+      cargo: usuarioAtual.cargo || "Agente de viagens",
+      permissao: usuarioAtual.permissao || "agente",
+      modo: "firebase",
+      acl: usuarioAtual.acl || ["cotacao:manual", "perfil:editar", "historico:ver"]
+    };
+    try{ await carregarPerfilFirebase(); }catch(e){ console.warn(e); }
+    salvarUsuarioAtual();
+    if($("contaLoginSenha")) $("contaLoginSenha").value = "";
+    preencherFormularioPerfilEmpresa();
+    mostrarStatusConta("success", "✅ Login realizado. Abrindo sistema...");
+    liberarSistemaAposLogin();
+  }catch(err){
+    if(err?.code === "auth/user-not-found"){
+      if($("contaCadastroEmail")) $("contaCadastroEmail").value = email;
+      alternarTelaConta("cadastro");
+      mostrarStatusConta("warning", "⚠️ Esse usuário ainda não existe. Preencha os dados e crie a conta para esse e-mail.");
+    }else if(err?.code === "auth/invalid-credential"){
+      mostrarStatusConta("error", "E-mail ou senha incorretos. Se esse usuário ainda não existe, clique em Criar conta.");
+    }else{
+      mostrarStatusConta("error", traduzirErroFirebase(err));
+    }
+  }
 }
 
 function entrarComoAdministradorLocal(){
@@ -463,6 +723,7 @@ function entrarComoAdministradorLocal(){
 
 function sairContaLocal(){
   if(!confirm("Sair e voltar para a página de login?")) return;
+  if(authFirebaseAtivo()) firebaseAuthCotamiles.signOut().catch(()=>{});
   voltarParaPaginaLogin();
 }
 
@@ -537,6 +798,77 @@ function atualizarTopoUsuario(){
   if($("topUsuarioFoto")) $("topUsuarioFoto").src = foto;
   if($("topUsuarioNome")) $("topUsuarioNome").textContent = usuarioAtual.nome || "Administrador";
   if($("loginLogoEmpresa")) $("loginLogoEmpresa").src = perfilEmpresa.logo || montarCaminhosImagem("isis.png")[0] || "";
+  preencherPerfilRapido();
+}
+
+function preencherPerfilRapido(){
+  const foto = usuarioAtual.foto || avatarPadraoUsuario(usuarioAtual.nome || "Administrador");
+  if($("perfilRapidoFotoPreview")) $("perfilRapidoFotoPreview").src = foto;
+  if($("perfilRapidoLogoPreview")) $("perfilRapidoLogoPreview").src = perfilEmpresa.logo || montarCaminhosImagem("isis.png")[0] || "";
+  if($("perfilRapidoUsuarioNome")) $("perfilRapidoUsuarioNome").value = usuarioAtual.nome || "";
+  if($("perfilRapidoUsuarioCargo")) $("perfilRapidoUsuarioCargo").value = usuarioAtual.cargo || "";
+  if($("perfilRapidoEmpresaNome")) $("perfilRapidoEmpresaNome").value = perfilEmpresa.nome || "";
+  if($("perfilRapidoEmpresaSlogan")) $("perfilRapidoEmpresaSlogan").value = perfilEmpresa.slogan || "";
+  if($("perfilRapidoEmpresaEmail")) $("perfilRapidoEmpresaEmail").value = perfilEmpresa.email || "";
+  if($("perfilRapidoEmpresaWhatsapp")) $("perfilRapidoEmpresaWhatsapp").value = perfilEmpresa.whatsapp || "";
+  if($("perfilRapidoEmpresaCor")) $("perfilRapidoEmpresaCor").value = normalizarHex(perfilEmpresa.cor || corAtual);
+}
+
+function abrirPerfilRapido(){
+  preencherPerfilRapido();
+  if($("perfilRapidoBackdrop")) $("perfilRapidoBackdrop").classList.add("active");
+}
+
+function fecharPerfilRapido(ev){
+  if(ev && ev.target && ev.currentTarget && ev.target !== ev.currentTarget) return;
+  if($("perfilRapidoBackdrop")) $("perfilRapidoBackdrop").classList.remove("active");
+}
+
+async function lidarUploadFotoPerfilRapido(e){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith("image/")) return;
+  usuarioAtual.foto = await otimizarImagemParaBase64(file, 700, 0.86);
+  salvarUsuarioAtual();
+  if(firebaseAuthCotamiles?.currentUser){
+    await firebaseAuthCotamiles.currentUser.updateProfile({ photoURL: usuarioAtual.foto }).catch(()=>{});
+    salvarPerfilFirebase().catch(()=>{});
+  }
+  atualizarTopoUsuario();
+}
+
+async function lidarUploadLogoPerfilRapido(e){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith("image/")) return;
+  perfilEmpresa.logo = await otimizarImagemParaBase64(file, 900, 0.86);
+  persistirPerfilEmpresa();
+  preencherFormularioPerfilEmpresa();
+  atualizarTopoUsuario();
+  atualizarPreview();
+  if($("perfilRapidoStatus")) $("perfilRapidoStatus").innerHTML = alertHtml("success", "✅ Logo da empresa atualizada. Ela já aparecerá no PDF.");
+}
+
+function salvarPerfilRapido(){
+  usuarioAtual.nome = ($("perfilRapidoUsuarioNome")?.value || usuarioAtual.nome || "Administrador").trim();
+  usuarioAtual.cargo = ($("perfilRapidoUsuarioCargo")?.value || usuarioAtual.cargo || "Administrador").trim();
+  salvarUsuarioAtual();
+  if(firebaseAuthCotamiles?.currentUser){
+    firebaseAuthCotamiles.currentUser.updateProfile({ displayName: usuarioAtual.nome, photoURL: usuarioAtual.foto || "" }).catch(()=>{});
+  }
+
+  perfilEmpresa.nome = ($("perfilRapidoEmpresaNome")?.value || perfilEmpresa.nome || "Cotamiles").trim();
+  perfilEmpresa.slogan = ($("perfilRapidoEmpresaSlogan")?.value || "").trim();
+  perfilEmpresa.email = ($("perfilRapidoEmpresaEmail")?.value || "").trim();
+  perfilEmpresa.whatsapp = ($("perfilRapidoEmpresaWhatsapp")?.value || "").trim();
+  perfilEmpresa.cor = normalizarHex($("perfilRapidoEmpresaCor")?.value || perfilEmpresa.cor || corAtual);
+  persistirPerfilEmpresa();
+  mudarCor(perfilEmpresa.cor);
+  preencherFormularioPerfilEmpresa();
+  atualizarTopoUsuario();
+  atualizarPreview();
+  if($("perfilRapidoStatus")) $("perfilRapidoStatus").innerHTML = alertHtml("success", "✅ Perfil salvo. O nome da empresa já será usado no PDF.");
+  setTimeout(()=>{ fecharPerfilRapido(); if($("perfilRapidoStatus")) $("perfilRapidoStatus").innerHTML = ""; }, 900);
 }
 
 function atualizarTelaLoginApp(){
@@ -557,12 +889,16 @@ function liberarSistemaAposLogin(){
 function voltarParaPaginaLogin(){
   localStorage.removeItem(STORAGE_KEYS.sessaoAtiva);
   alternarTelaConta("login");
+  if($("contaLoginSenha")) $("contaLoginSenha").value = "";
+  observarSessaoFirebase();
   atualizarTelaLoginApp();
 }
 
 function inicializarContaLocal(){
   if(!localStorage.getItem(STORAGE_KEYS.usuarioAtual)) localStorage.setItem(STORAGE_KEYS.usuarioAtual, JSON.stringify(usuarioAtual));
   if($("contaCadastroFotoInput")) $("contaCadastroFotoInput").addEventListener("change", lidarUploadFotoConta);
+  if($("perfilRapidoFotoInput")) $("perfilRapidoFotoInput").addEventListener("change", lidarUploadFotoPerfilRapido);
+  if($("perfilRapidoLogoInput")) $("perfilRapidoLogoInput").addEventListener("change", lidarUploadLogoPerfilRapido);
   atualizarTelaLoginApp();
 }
 
@@ -1415,8 +1751,8 @@ function gerarHTMLPreview(){
   let deHtml = valorOrig && valorOrig.trim() ? `<div class="price-original">De: ${valorOrig}</div>` : "";
   let passageirosHtml = gerarPassageirosPDF(textoPessoas);
 
-  let empresaNome = perfilEmpresa.nome || "ISI VIAGENS LTDA";
-  let empresaSlogan = perfilEmpresa.slogan || "VOAR É ISI ✈️";
+  let empresaNome = perfilEmpresa.nome || "Cotamiles";
+  let empresaSlogan = perfilEmpresa.slogan || "Cotação aérea inteligente ✈️";
   let empresaContato = contatoEmpresaTexto();
   let empresaSub = empresaContato || empresaSlogan;
 
@@ -1506,7 +1842,7 @@ function excluirSelecionados(){ let ids=[...document.querySelectorAll(".select-i
 function exportarHistorico(){ if(!cotacoesSalvas.length) return; let csv="Data,Cliente,Cotação,Tipo,Grupo,Valor Original,Valor Promocional\n"; cotacoesSalvas.forEach(c=>{ csv+=`"${c.data}","${c.cliente}","${c.cotacao}","${c.tipoViagem}","${c.nomeGrupo}","${c.valorOriginal}","${c.valorPromocional}"\n`; }); let blob=new Blob(["\uFEFF"+csv],{type:"text/csv"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="cotacoes_isi.csv"; a.click(); URL.revokeObjectURL(a.href); }
 
 function mudarAba(aba){
-  const mapa = { perfil:"abaPerfil", cotador:"abaCotador", historico:"abaHistorico" };
+  const mapa = { perfil:"abaPerfil", cotador:"abaCotador", automatico:"abaAutomatico", historico:"abaHistorico" };
   Object.entries(mapa).forEach(([chave, id]) => { if($(id)) $(id).classList.toggle("active", aba === chave); });
   document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.aba === aba));
   if(aba === "historico") atualizarListaHistorico();
@@ -1637,4 +1973,5 @@ atualizarPreviewPerfilEmpresa();
 atualizarTelaLoginApp();
 atualizarListaHistorico();
 configurarPWA();
+atualizarRegrasSenha();
 testarAmadeus();
