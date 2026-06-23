@@ -1,11 +1,13 @@
 // Cotamiles — Firebase Web Config
-// Cole aqui a configuração do Firebase Console > Project settings > Your apps > Web app.
-// Esses dados são públicos do app web. NÃO coloque client_secret, senha, token do Amadeus ou chave privada aqui.
+// Dados públicos do app web Firebase.
+// NÃO coloque senha, token do Amadeus, client_secret ou chave privada aqui.
+
 window.COTAMILES_FIREBASE_CONFIG = {
-  apiKey: "COLE_AQUI_API_KEY",
-  authDomain: "COLE_AQUI_PROJECT.firebaseapp.com",
-  projectId: "COLE_AQUI_PROJECT_ID",
-  storageBucket: "COLE_AQUI_PROJECT.appspot.com",
-  messagingSenderId: "COLE_AQUI_SENDER_ID",
-  appId: "COLE_AQUI_APP_ID"
+  apiKey: "AIzaSyDHGljModCRZ10YaTKgDb2hHrHpksNf5RQ",
+  authDomain: "cotamiles.firebaseapp.com",
+  projectId: "cotamiles",
+  storageBucket: "cotamiles.firebasestorage.app",
+  messagingSenderId: "521976892680",
+  appId: "1:521976892680:web:40d51c90c304487470b0bd",
+  measurementId: "G-6W6KCDE6BY"
 };
