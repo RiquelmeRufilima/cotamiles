@@ -396,6 +396,26 @@ function inicializarFirebaseCotamiles(){
 function authFirebaseAtivo(){ return inicializarFirebaseCotamiles() && !!firebaseAuthCotamiles; }
 function uidAtualFirebase(){ return firebaseAuthCotamiles?.currentUser?.uid || usuarioAtual?.id || "local-admin"; }
 
+function atualizarStatusFirebaseLogin(){
+  const ok = authFirebaseAtivo();
+  const badge = $("firebaseLoginStatus");
+  const aviso = $("firebaseAvisoConfig");
+  if(badge){
+    badge.classList.toggle("is-ok", ok);
+    badge.classList.toggle("is-error", !ok);
+    badge.textContent = ok ? "🔐 Firebase Auth conectado" : "⚠️ Firebase não configurado";
+  }
+  if(aviso){
+    aviso.classList.toggle("alert-success", ok);
+    aviso.classList.toggle("conta-warning", !ok);
+    aviso.innerHTML = ok
+      ? "<strong>Firebase ativo:</strong> cadastro, login, recuperação de senha e Google Auth estão prontos."
+      : "<strong>Firebase:</strong> confira se o arquivo <code>firebase-config.js</code> está na raiz do GitHub e se veio antes do <code>funcoes.js</code>.";
+  }
+  return ok;
+}
+
+
 function traduzirErroFirebase(error){
   const code = error?.code || "";
   const mapa = {
@@ -407,7 +427,11 @@ function traduzirErroFirebase(error){
     "auth/user-not-found": "Usuário não encontrado. Clique em Criar conta para cadastrar esse e-mail.",
     "auth/too-many-requests": "Muitas tentativas. Aguarde um pouco e tente novamente.",
     "auth/network-request-failed": "Falha de conexão. Verifique a internet.",
-    "auth/operation-not-allowed": "Ative Email/Senha no Firebase Authentication."
+    "auth/operation-not-allowed": "Ative o provedor correspondente no Firebase Authentication.",
+    "auth/popup-closed-by-user": "Login com Google cancelado antes de concluir.",
+    "auth/popup-blocked": "O navegador bloqueou a janela do Google. Libere pop-ups para este site.",
+    "auth/account-exists-with-different-credential": "Este e-mail já está cadastrado com outro método de login. Entre pelo método usado antes.",
+    "auth/unauthorized-domain": "Este domínio ainda não está autorizado no Firebase. Adicione o domínio do GitHub Pages em Authentication > Configurações > Domínios autorizados."
   };
   return mapa[code] || error?.message || "Não foi possível concluir a ação.";
 }
@@ -714,6 +738,40 @@ async function entrarContaLocal(){
   }
 }
 
+
+async function entrarComGoogle(){
+  if(!authFirebaseAtivo()){
+    atualizarStatusFirebaseLogin();
+    return mostrarStatusConta("error", "Firebase ainda não está configurado. Confira o arquivo firebase-config.js no GitHub.");
+  }
+  try{
+    mostrarStatusConta("info", "Abrindo login do Google...");
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    const cred = await firebaseAuthCotamiles.signInWithPopup(provider);
+    const user = cred.user;
+    usuarioAtual = {
+      ...clonar(USUARIO_LOCAL_PADRAO),
+      id: user.uid,
+      nome: user.displayName || (user.email ? user.email.split("@")[0] : "Usuário"),
+      email: user.email || "",
+      foto: user.photoURL || usuarioAtual.foto || avatarPadraoUsuario(user.email || "Usuário"),
+      cargo: usuarioAtual.cargo || "Agente de viagens",
+      permissao: usuarioAtual.permissao || "agente",
+      modo: "firebase-google",
+      acl: usuarioAtual.acl || ["cotacao:manual", "perfil:editar", "historico:ver"]
+    };
+    try{ await carregarPerfilFirebase(); }catch(e){ console.warn(e); }
+    salvarUsuarioAtual();
+    preencherFormularioPerfilEmpresa();
+    await salvarPerfilFirebase().catch(()=>{});
+    mostrarStatusConta("success", "✅ Login com Google realizado. Abrindo sistema...");
+    liberarSistemaAposLogin();
+  }catch(err){
+    mostrarStatusConta("error", traduzirErroFirebase(err));
+  }
+}
+
 function entrarComoAdministradorLocal(){
   usuarioAtual = clonar(USUARIO_LOCAL_PADRAO);
   preencherFormularioPerfilEmpresa();
@@ -899,9 +957,10 @@ function inicializarContaLocal(){
   if($("contaCadastroFotoInput")) $("contaCadastroFotoInput").addEventListener("change", lidarUploadFotoConta);
   if($("perfilRapidoFotoInput")) $("perfilRapidoFotoInput").addEventListener("change", lidarUploadFotoPerfilRapido);
   if($("perfilRapidoLogoInput")) $("perfilRapidoLogoInput").addEventListener("change", lidarUploadLogoPerfilRapido);
+  atualizarStatusFirebaseLogin();
+  observarSessaoFirebase();
   atualizarTelaLoginApp();
 }
-
 async function api(path, options={}){
   const res = await fetch(path, { ...options, headers: { "Content-Type":"application/json", ...(options.headers || {}) } });
   const data = await res.json().catch(()=> ({}));
