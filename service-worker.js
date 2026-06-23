@@ -1,4 +1,4 @@
-const CACHE_NAME = "isi-viagens-pwa-v4";
+const CACHE_NAME = "cotamiles-pwa-v5-blue-firebase";
 const APP_SHELL = [
   "./",
   "./index.html",
