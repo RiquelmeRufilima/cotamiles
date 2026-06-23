@@ -1,4 +1,4 @@
-const CACHE_NAME = "cotamiles-pwa-v5-blue-firebase";
+const CACHE_NAME = "cotamiles-pwa-v6-google-firebase";
 const APP_SHELL = [
   "./",
   "./index.html",
