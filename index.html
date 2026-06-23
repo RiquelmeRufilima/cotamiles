@@ -12,8 +12,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="ISI Viagens" />
-  <title>ISI Viagens - App de Cotação</title>
+  <meta name="apple-mobile-web-app-title" content="Cotamiles" />
+  <title>Cotamiles - App de Cotação</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
@@ -1007,6 +1007,72 @@
     .conta-user-left span{display:block;font-size:10px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .conta-warning{background:#fff7ed;border-left:4px solid #f97316;color:#7c2d12;border-radius:10px;padding:10px;font-size:11px;line-height:1.45;margin-top:10px;}
     .conta-status-msg{margin-top:10px;}
+
+    .firebase-status-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:10px;
+      font-weight:950;
+      text-transform:uppercase;
+      letter-spacing:.3px;
+      margin:4px 0 10px;
+      background:#eef2ff;
+      color:#1d4ed8;
+    }
+    .firebase-status-badge.is-ok{ background:#e8f7ee; color:#047857; }
+    .firebase-status-badge.is-error{ background:#fff7ed; color:#c2410c; }
+    .login-divider{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:12px 0;
+      color:#64748b;
+      font-size:11px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.4px;
+    }
+    .login-divider:before,
+    .login-divider:after{
+      content:"";
+      height:1px;
+      background:#e2e8f0;
+      flex:1;
+    }
+    .google-login-btn{
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:9px;
+      border:1px solid #dbe4ef;
+      background:#fff;
+      color:#0f172a;
+      padding:10px 13px;
+      border-radius:12px;
+      font-size:13px;
+      font-weight:950;
+      cursor:pointer;
+      box-shadow:0 1px 3px rgba(15,23,42,.06);
+      transition:.18s;
+    }
+    .google-login-btn:hover{ border-color:#b7c7dd; background:#f8fafc; transform:translateY(-1px); }
+    .google-g{
+      width:20px;
+      height:20px;
+      border-radius:50%;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      background:conic-gradient(from 45deg,#4285F4 0 25%,#34A853 0 50%,#FBBC05 0 75%,#EA4335 0);
+      font-size:12px;
+      font-weight:950;
+    }
+
     @media (max-width:900px){
       .conta-container{grid-template-columns:1fr;}
       .conta-user-meta{grid-template-columns:1fr;}
@@ -1349,7 +1415,7 @@
       <span class="login-top-pill">Cotamiles</span>
       <h2>Entrar</h2>
       <p class="conta-subtitle">Acesse com e-mail e senha pelo Firebase Auth. As senhas não ficam no GitHub nem no código.</p>
-      <div class="login-advanced-badge">🔐 Firebase Auth conectado</div>
+      <div id="firebaseLoginStatus" class="firebase-status-badge is-error">🔐 Verificando Firebase...</div>
 
       <div class="conta-tabs-mini">
         <button class="conta-mini-btn active" id="btnContaLogin" type="button" onclick="alternarTelaConta('login')">Entrar</button>
@@ -1381,6 +1447,11 @@
         <div class="conta-actions-row">
           <button class="btn-generate" type="button" onclick="entrarContaLocal()">🔓 Entrar</button>
         </div>
+        <div class="login-divider">ou</div>
+        <button class="google-login-btn" type="button" onclick="entrarComGoogle()">
+          <span class="google-g">G</span>
+          Entrar com Google
+        </button>
       </div>
 
       <div id="contaFormCadastro" class="conta-form">
@@ -1431,7 +1502,7 @@
       </div>
 
       <div id="contaStatus" class="conta-status-msg"></div>
-      <div class="conta-warning"><strong>Segurança:</strong> configure o Firebase no arquivo <code>firebase-config.js</code>. Sem essa configuração, o login real não será ativado.</div>
+      <div id="firebaseAvisoConfig" class="conta-warning"><strong>Firebase:</strong> aguardando configuração do arquivo <code>firebase-config.js</code>.</div>
     </div>
 
     <div class="conta-card login-secondary">
