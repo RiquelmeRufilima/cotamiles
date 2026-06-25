@@ -3,7 +3,7 @@
 // NÃO coloque senha, token do Amadeus, client_secret ou chave privada aqui.
 
 window.COTAMILES_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDHGljModCRZ10YaTKgDb2hHrHpksNf5RQ",
+  apiKey: "AIzaSyDHGljModCRZ1OYaTKgDb2hHrHpksNf5RQ",
   authDomain: "cotamiles.firebaseapp.com",
   projectId: "cotamiles",
   storageBucket: "cotamiles.firebasestorage.app",
