@@ -1,15 +1,17 @@
-const CACHE_NAME = "cotamiles-pwa-v6-google-firebase";
+const CACHE_NAME = "cotamiles-pwa-v7-firebase-config";
+
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./firebase-config.js",
   "./funcoes.js",
   "./manifest.json",
+  "./service-worker.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/maskable-192.png",
   "./icons/maskable-512.png"
 ];
-
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
