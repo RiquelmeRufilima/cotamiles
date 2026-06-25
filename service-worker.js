@@ -1,4 +1,4 @@
-const CACHE_NAME = "cotamiles-pwa-v7-firebase-config";
+const CACHE_NAME = "cotamiles-pwa-v1002-firebase-config";
 
 const APP_SHELL = [
   "./",
@@ -12,6 +12,7 @@ const APP_SHELL = [
   "./icons/maskable-192.png",
   "./icons/maskable-512.png"
 ];
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -34,7 +35,6 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  // Navegação: tenta internet; se estiver offline, abre o app salvo.
   if(request.mode === "navigate"){
     event.respondWith(
       fetch(request).catch(() => caches.match("./index.html"))
@@ -42,14 +42,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Arquivos estáticos: cache primeiro, depois internet.
   if(url.origin === location.origin){
     event.respondWith(
-      caches.match(request).then(cached => cached || fetch(request).then(response => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-        return response;
-      }).catch(() => cached))
+      fetch(request)
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
   }
 });
